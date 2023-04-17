@@ -1,0 +1,19 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+    * {
+        scrollbar-color: rgb(195,60,102) #061E30;
+    }
+    
+    *::-webkit-scrollbar {
+        width: 5px;
+    }
+    /* Track */
+    
+    *::-webkit-scrollbar-track {
+        background: #061E30
+    }
+    
+    *::-webkit-scrollbar-thumb {
+        background: rgb(195,60,102);
+    }

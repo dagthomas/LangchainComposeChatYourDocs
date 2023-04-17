@@ -1,0 +1,7 @@
+fastapi/__pycache__
+fastapi/app/.env
+sveltekit/.svelte-kit
+sveltekit/node_modules
+azure-devops-pipeline.yml
+docker-pipeline.yml
+# fastapi/app/.env
