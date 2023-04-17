@@ -1,4 +1,4 @@
-# Project Name
+# LangchainComposeChatYourDocs
 A fastapi, qdrant, langchain, sveltekit starter project with some cool features.
 
 ## Project Description
