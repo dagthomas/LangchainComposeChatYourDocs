@@ -1,4 +1,4 @@
-# Project Name
+# LangchainComposeChatYourDocs
 A fastapi, qdrant, langchain, sveltekit starter project with some cool features.
 
 ## Project Description
@@ -12,3 +12,5 @@ Goto: http://localhost:3000
 
 ## Usage
 From the startpage, upload a file, webpage or webpages
+
+https://www.youtube.com/watch?v=tnB5jOdsPqM
