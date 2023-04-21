@@ -3,4 +3,5 @@ sveltekit/.svelte-kit
 sveltekit/node_modules
 azure-devops-pipeline.yml
 docker-pipeline.yml
+fastapi/.env
 # fastapi/app/.env
