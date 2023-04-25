@@ -11,6 +11,7 @@ import logging
 from typing import List
 import urllib3
 import os
+import tempfile
 import sys
 import magic
 import pandas as pd
@@ -166,40 +167,37 @@ async def create_item(item: Collection, token: str = Depends(get_token)):
 
 
 loader_classes = {
-    "application/pdf": PyPDFLoader,
-    "application/vnd.ms-excel": CSVLoader,
-    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": CSVLoader,
-    "text/csv": CSVLoader,
-    "application/epub+zip": UnstructuredEPubLoader,
-    "application/vnd.openxmlformats-officedocument.presentationml.presentation": UnstructuredPowerPointLoader,
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": UnstructuredWordDocumentLoader,
-    "text/plain": SRTLoader
+    ".pdf": PyPDFLoader,
+    ".xls": CSVLoader,
+    ".xlsx": CSVLoader,
+    ".csv": CSVLoader,
+    ".epub": UnstructuredEPubLoader,
+    ".pptx": UnstructuredPowerPointLoader,
+    ".docx": UnstructuredWordDocumentLoader,
+    ".txt": SRTLoader,
+    ".srt": SRTLoader
 }
 
 
-async def ingest_data(filepath, slug, file_type):
+async def ingest_data(tmp_file, slug, file_type, separator, chunk_size):
     if file_type in loader_classes:
         loader_class = loader_classes[file_type]
         if loader_class == CSVLoader:
-            excel = pd.read_excel(filepath)
-            excel.to_csv(f"./app/files/{AUTHORIZED_API_KEY}/{slug}.csv",
-                         index=None,
-                         header=True)
-            file_path = f"./app/files/{AUTHORIZED_API_KEY}/{slug}.csv"
-        else:
-            file_path = filepath
-        print(loader_class)
-        loader = loader_class(file_path=file_path)
+            excel = pd.read_excel(tmp_file)
+            excel.to_csv(
+                f"./files/{AUTHORIZED_API_KEY}/{slug}.csv", index=None, header=True
+            )
+        loader = loader_class(tmp_file)
     else:
         return "Filetype not supported"
-
     documents = loader.load()
-
     # cache the embeddings
     if not hasattr(ingest_data, "embeddings"):
         ingest_data.embeddings = OpenAIEmbeddings()
-
-    text_splitter = CharacterTextSplitter(chunk_size=250, chunk_overlap=40)
+    text_splitter = CharacterTextSplitter(
+        chunk_size=chunk_size, chunk_overlap=0, separator=separator
+    )
+    print(documents)
     docs = text_splitter.split_documents(documents)
     Qdrant.from_documents(docs, ingest_data.embeddings, host=host,
                           collection_name=slug, prefer_grpc=True)
@@ -208,14 +206,19 @@ async def ingest_data(filepath, slug, file_type):
 
 @app.post("/upload")
 async def upload_file(file: UploadFile = File(...), token: str = Depends(get_token)):
-    os.makedirs(f"./app/files/{AUTHORIZED_API_KEY}/", exist_ok=True)
-    file_location = f"./app/files/{AUTHORIZED_API_KEY}/{file.filename}"
-    async with aiofiles.open(file_location, "wb+") as file_object:
-        await file_object.write(await file.read())
-    # cache the file type detection
-    filetype = magic.from_file(file_location, mime=True)
-    response = await ingest_data(file_location, slugify(os.path.splitext(file.filename)[0]), filetype)
-    os.remove(file_location)
+    with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
+        tmp_file.write(await file.read())
+        tmp_file_path = tmp_file.name
+    filetype = os.path.splitext(file.filename)
+    response = await ingest_data(
+        tmp_file_path,
+        slugify(os.path.splitext(file.filename)[0]),
+        filetype[1],
+        chunk_size=256,
+        separator="\n\n",
+    )
+    tmp_file.close()
+    os.unlink(tmp_file.name)
     return response
 
 
