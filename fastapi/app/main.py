@@ -24,6 +24,8 @@ from langchain.schema import (
     HumanMessage,
     SystemMessage
 )
+from langchain.document_loaders.base import Document
+from langchain.document_loaders import ApifyDatasetLoader
 from langchain.cache import InMemoryCache
 from langchain.document_loaders import WebBaseLoader
 from langchain.chat_models import ChatOpenAI
@@ -34,7 +36,7 @@ from langchain.document_loaders import UnstructuredEPubLoader
 from langchain.document_loaders import UnstructuredPowerPointLoader
 from langchain.document_loaders import PyPDFLoader
 from langchain.vectorstores import Qdrant
-from langchain.text_splitter import CharacterTextSplitter
+from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.embeddings.openai import OpenAIEmbeddings
 from langchain.chains.qa_with_sources import load_qa_with_sources_chain
 from langchain.callbacks.base import CallbackManager
@@ -54,6 +56,7 @@ load_dotenv()
 
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 AUTHORIZED_API_KEY = os.getenv('AUTHORIZED_API_KEY')
+os.environ["APIFY_API_TOKEN"] = os.getenv('APIFY_API_TOKEN')
 openai.api_key = OPENAI_API_KEY
 
 host = "qdrant"
@@ -113,6 +116,11 @@ class GPTQuery(BaseModel):
 class Query(BaseModel):
     query: str
     collection: str
+    
+class Apify(BaseModel):
+    dataset: str
+    collection: str
+
 
 
 class Collection(BaseModel):
@@ -179,7 +187,7 @@ loader_classes = {
 }
 
 
-async def ingest_data(tmp_file, slug, file_type, separator, chunk_size):
+async def ingest_data(tmp_file, slug, file_type, chunk_size, chunk_overlap):
     if file_type in loader_classes:
         loader_class = loader_classes[file_type]
         if loader_class == CSVLoader:
@@ -194,8 +202,8 @@ async def ingest_data(tmp_file, slug, file_type, separator, chunk_size):
     # cache the embeddings
     if not hasattr(ingest_data, "embeddings"):
         ingest_data.embeddings = OpenAIEmbeddings()
-    text_splitter = CharacterTextSplitter(
-        chunk_size=chunk_size, chunk_overlap=0, separator=separator
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=chunk_size, chunk_overlap=chunk_overlap
     )
     print(documents)
     docs = text_splitter.split_documents(documents)
@@ -215,7 +223,7 @@ async def upload_file(file: UploadFile = File(...), token: str = Depends(get_tok
         slugify(os.path.splitext(file.filename)[0]),
         filetype[1],
         chunk_size=256,
-        separator="\n\n",
+        chunk_overlap=40
     )
     tmp_file.close()
     os.unlink(tmp_file.name)
@@ -227,7 +235,7 @@ async def create_webpage(item: Webpage, token: str = Depends(get_token)):
     collection_name = slugify(item.url.split("/")[-1])
     loader = WebBaseLoader(item.url)
     documents = loader.load()
-    text_splitter = CharacterTextSplitter(chunk_size=250, chunk_overlap=40)
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=250, chunk_overlap=40)
     docs = text_splitter.split_documents(documents)
     embeddings = OpenAIEmbeddings()
     Qdrant.from_documents(docs, embeddings, host=host,
@@ -239,7 +247,7 @@ async def create_webpage(item: Webpage, token: str = Depends(get_token)):
 async def create_webpages(item: Webpages, token: str = Depends(get_token)):
     loader = WebBaseLoader(item.urls)
     documents = loader.load()
-    text_splitter = CharacterTextSplitter(chunk_size=250, chunk_overlap=40)
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=250, chunk_overlap=40)
     docs = text_splitter.split_documents(documents)
     embeddings = OpenAIEmbeddings()
     Qdrant.from_documents(docs, embeddings, host=host,
@@ -259,6 +267,29 @@ async def openai_query(item: GPTQuery, token: str = Depends(get_token)):
 
     return result.choices[0].message.content
 
+@app.post("/apify")
+async def stream(item: Apify, token: str = Depends(get_token)):
+    
+    loader = ApifyDatasetLoader(
+        dataset_id=item.dataset,
+        dataset_mapping_function=lambda dataset_item: Document(
+            page_content=dataset_item["text"],
+            metadata={
+                "source": dataset_item["url"],
+
+            },
+        ),
+    )
+    embeddings = OpenAIEmbeddings()
+    documents = loader.load()
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=250, chunk_overlap=40)
+    docs = text_splitter.split_documents(documents)
+    Qdrant.from_documents(
+        docs,
+        embeddings,
+        host=host,
+        collection_name=item.collection
+    )
 
 class ThreadedGenerator:
     def __init__(self):
