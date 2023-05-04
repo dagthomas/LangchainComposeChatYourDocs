@@ -5,3 +5,4 @@ azure-devops-pipeline.yml
 docker-pipeline.yml
 fastapi/.env
 # fastapi/app/.env
+fastapi/app/.env

@@ -1,7 +1,7 @@
 uvicorn[standard]==0.20.0
 gunicorn==20.1.0
 fastapi>=0.89.1
-langchain>=0.0.118
+langchain==0.0.153
 openai>=0.27.1
 qdrant_client>=0.1.0
 python-multipart>=0.0.6
@@ -13,7 +13,6 @@ python-magic>=0.4.24
 bs4>=0.0.1
 transformers>=4.11.3
 openpyxl>=3.0.9
-llama_index>=0.5.6
 aiofiles>=0.7.0
 asyncio>=3.4.3
 unstructured>=0.0.1
@@ -21,3 +20,7 @@ aiohttp>=3.7.4.post0
 pysrt>=1.1.2
 sseclient>=0.0.27
 pycryptodome>=3.15.0
+apify-client>=0.5.20
+tiktoken>=0.0.1
+nltk>=3.6.5
+spacy>=3.1.4

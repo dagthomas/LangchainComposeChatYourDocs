@@ -131,6 +131,11 @@
 			$streamstore = [];
 		}
 	}
+function replaceLinks(text: string) {
+	const regex = /(https?:\/\/[^\s)]+)/g;
+	const replacedText = text.replace(regex, '<a class="text-ll-s-1" href="$1" onclick="window.open($1); return false;">$1</a>');
+	return replacedText;
+}
 </script>
 
 <svelte:window />
@@ -172,7 +177,7 @@
 						>
 					</div>
 					<div class="pre chat-bubble bg-ll-p-dark">
-						{item?.message}
+						{@html replaceLinks(item?.message)}
 					</div>
 				</div>
 			{:else}
@@ -255,4 +260,5 @@
 	:global(html) {
 		scroll-behavior: smooth;
 	}
+
 </style>
